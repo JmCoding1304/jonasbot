@@ -1,6 +1,8 @@
-# Hetzner VPS Deployment Guide for OpenClaw
+# Hetzner VPS Deployment Guide for Jonasbot
 
-Complete guide to deploy OpenClaw on Hetzner Cloud with security hardening and Cloudflare protection.
+Complete guide to deploy Jonasbot (OpenClaw fork with cost optimizations) on Hetzner Cloud with security hardening and Cloudflare protection.
+
+> **Note**: This guide deploys from source (git clone + build) rather than npm install, giving you full control over updates and customizations.
 
 ## Table of Contents
 
@@ -305,28 +307,44 @@ Action: Block
 
 ---
 
-## 5. Install OpenClaw
+## 5. Install Jonasbot (OpenClaw Fork)
 
-### Install Node.js
+### Install Node.js and pnpm
 
 ```bash
 # Install Node.js 22 via NodeSource
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs
+sudo apt install -y nodejs git
+
+# Install pnpm
+npm install -g pnpm
 
 # Verify
 node --version  # Should be v22.x
-npm --version
+pnpm --version
 ```
 
-### Install OpenClaw
+### Clone and Build Jonasbot
 
 ```bash
-# Install globally
-sudo npm install -g openclaw
+# Switch to openclaw user
+sudo -u openclaw -i
 
-# Verify installation
-openclaw --version
+# Clone the repository
+cd ~
+git clone https://github.com/YOUR_USERNAME/jonasbot.git
+# Or if private, use SSH: git clone git@github.com:YOUR_USERNAME/jonasbot.git
+
+cd jonasbot
+
+# Install dependencies
+pnpm install
+
+# Build the project
+pnpm build
+
+# Verify build
+node dist/index.js --version
 ```
 
 ### Create Directories
@@ -336,6 +354,26 @@ openclaw --version
 mkdir -p ~/.openclaw/{workspace,credentials,agents}
 chmod 700 ~/.openclaw
 chmod 700 ~/.openclaw/credentials
+```
+
+### Create Convenience Script
+
+```bash
+# Create a wrapper script for easy CLI access
+sudo nano /usr/local/bin/jonasbot
+```
+
+Add:
+
+```bash
+#!/bin/bash
+exec node /home/openclaw/jonasbot/dist/index.js "$@"
+```
+
+```bash
+sudo chmod +x /usr/local/bin/jonasbot
+
+# Now you can run: jonasbot --version
 ```
 
 ---
@@ -781,13 +819,13 @@ After=network.target
 Type=simple
 User=openclaw
 Group=openclaw
-WorkingDirectory=/home/openclaw
+WorkingDirectory=/home/openclaw/jonasbot
 
 # Load environment
 EnvironmentFile=/etc/openclaw/env
 
-# Start command
-ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway run
+# Start command (using local jonasbot build)
+ExecStart=/usr/bin/node /home/openclaw/jonasbot/dist/index.js gateway run
 ExecReload=/bin/kill -HUP $MAINPID
 
 # Restart policy
@@ -967,25 +1005,45 @@ crontab -e
 ### Update Script
 
 ```bash
-nano ~/update-openclaw.sh
+nano ~/update-jonasbot.sh
 ```
 
 Add:
 
 ```bash
 #!/bin/bash
-# Update OpenClaw safely
+# Update Jonasbot safely
 
 set -e
+
+cd ~/jonasbot
 
 echo "Backing up config..."
 cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak
 
+echo "Fetching updates..."
+git fetch origin
+
+echo "Checking for updates..."
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/main)
+
+if [ "$LOCAL" = "$REMOTE" ]; then
+    echo "Already up to date!"
+    exit 0
+fi
+
 echo "Stopping service..."
 sudo systemctl stop openclaw
 
-echo "Updating OpenClaw..."
-sudo npm update -g openclaw
+echo "Pulling updates..."
+git pull origin main
+
+echo "Installing dependencies..."
+pnpm install
+
+echo "Building..."
+pnpm build
 
 echo "Starting service..."
 sudo systemctl start openclaw
@@ -993,15 +1051,15 @@ sudo systemctl start openclaw
 echo "Checking health..."
 sleep 5
 if systemctl is-active --quiet openclaw; then
-    echo "Update successful!"
+    echo "Update successful! $(git rev-parse --short HEAD)"
 else
-    echo "Update failed, rolling back..."
-    sudo systemctl start openclaw
+    echo "Update failed! Check logs with: sudo journalctl -u openclaw -n 50"
+    exit 1
 fi
 ```
 
 ```bash
-chmod +x ~/update-openclaw.sh
+chmod +x ~/update-jonasbot.sh
 ```
 
 ---
