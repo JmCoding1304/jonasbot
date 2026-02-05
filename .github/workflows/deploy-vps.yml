@@ -1,0 +1,35 @@
+name: Deploy to VPS on main push
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: jonasbot
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: 22
+          script: |
+            cd /home/jonasbot/jonasbot
+            git fetch origin main
+            git reset --hard origin/main
+            pnpm install
+            pnpm build
+            openclaw gateway restart
+
+      - name: Notify success
+        if: success()
+        run: echo "✅ Deployment to VPS successful"
+
+      - name: Notify failure
+        if: failure()
+        run: echo "❌ Deployment to VPS failed"
