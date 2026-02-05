@@ -1,0 +1,68 @@
+// Cost-Optimized OpenClaw Configuration
+// Copy this to ~/.openclaw/openclaw.json and customize
+//
+// Key optimizations:
+// - Haiku as default (12x cheaper than Sonnet)
+// - Heartbeat uses Haiku (saves ~$5-15/month)
+// - Model aliases for easy switching when you need Sonnet
+// - Context pruning to reduce token usage
+//
+// Expected savings: $50-100/month → $5-15/month
+{
+  agents: {
+    defaults: {
+      workspace: "~/.openclaw/workspace",
+
+      // Default to Haiku (fast, cheap, good for most tasks)
+      // Switch to Sonnet for: architecture, code review, security, complex debugging
+      // Escalate to Opus for: multi-system planning, critical audits, novel algorithms
+      model: {
+        primary: "anthropic/claude-haiku-4-5",
+        fallbacks: ["anthropic/claude-sonnet-4-5", "anthropic/claude-opus-4-5"],
+      },
+
+      // Model aliases for easy switching via /model command
+      models: {
+        "anthropic/claude-opus-4-5": { alias: "opus" },
+        "anthropic/claude-sonnet-4-5": { alias: "sonnet" },
+        "anthropic/claude-haiku-4-5": { alias: "haiku" },
+      },
+
+      // Heartbeat uses Haiku to minimize costs
+      // Runs every hour instead of every 30 min to reduce API calls
+      heartbeat: {
+        every: "1h",
+        model: "anthropic/claude-haiku-4-5",
+        target: "last",
+      },
+
+      // Context pruning to reduce token usage on long sessions
+      contextPruning: {
+        mode: "cache-ttl",
+        ttl: "30m",
+        keepLastAssistants: 3,
+      },
+
+      // Reasonable timeout
+      timeoutSeconds: 300,
+    },
+  },
+
+  // Session config for efficient context management
+  session: {
+    scope: "per-sender",
+    reset: {
+      mode: "daily",
+      atHour: 4,
+      idleMinutes: 60,
+    },
+  },
+
+  // Channel config - customize with your numbers
+  channels: {
+    whatsapp: {
+      dmPolicy: "pairing",
+      allowFrom: ["+15555550123"], // Replace with your number
+    },
+  },
+}
