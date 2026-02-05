@@ -600,30 +600,50 @@ If more than one person can DM your bot (multiple entries in `allowFrom`, pairin
 
 ### Cost-optimized setup
 
-Optimized for lower API costs by using Haiku as default and routing to Sonnet only when needed.
+Optimized for lower API costs using model tiering, prompt caching, and context pruning.
 
 ```json5
 {
   agents: {
     defaults: {
       workspace: "~/.openclaw/workspace",
+
       // Haiku as default (fast, cheap, good for most tasks)
       // Sonnet for complex tasks, Opus for critical planning
       model: {
         primary: "anthropic/claude-haiku-4-5",
         fallbacks: ["anthropic/claude-sonnet-4-5", "anthropic/claude-opus-4-5"],
       },
-      // Model aliases for easy switching
+
+      // Model aliases + prompt caching
+      // cacheRetention: "short" = 5 min cache (90% discount on cached tokens)
+      // Caching is most effective on Sonnet/Opus (larger prompts = bigger savings)
       models: {
-        "anthropic/claude-opus-4-5": { alias: "opus" },
-        "anthropic/claude-sonnet-4-5": { alias: "sonnet" },
+        "anthropic/claude-opus-4-5": {
+          alias: "opus",
+          params: { cacheRetention: "short" },
+        },
+        "anthropic/claude-sonnet-4-5": {
+          alias: "sonnet",
+          params: { cacheRetention: "short" },
+        },
         "anthropic/claude-haiku-4-5": { alias: "haiku" },
       },
-      // Heartbeat uses Haiku to save costs
+
+      // Heartbeat uses Haiku (cheap) and keeps cache warm
+      // 4 min interval keeps 5 min cache from expiring
       heartbeat: {
-        every: "1h",
+        every: "4m",
         model: "anthropic/claude-haiku-4-5",
         target: "last",
+      },
+
+      // Context pruning synced with cache TTL
+      // Prunes old messages after cache expires to avoid waste
+      contextPruning: {
+        mode: "cache-ttl",
+        ttl: "5m",
+        keepLastAssistants: 3,
       },
     },
   },
@@ -634,13 +654,27 @@ Optimized for lower API costs by using Haiku as default and routing to Sonnet on
 ```
 
 Key cost optimizations:
-- **Default to Haiku**: 12x cheaper than Sonnet ($0.25/MTok vs $3/MTok input)
-- **Heartbeat uses Haiku**: Saves ~$5-15/month on heartbeat checks
-- **Three-tier model routing**:
-  - Haiku: routine tasks, simple queries, quick operations
-  - Sonnet: architecture, code review, security analysis, complex debugging
-  - Opus: multi-system planning, critical audits, novel algorithms, strategic decisions
-- **Fallback chain**: Automatic failover through the tiers if needed
+
+**Model tiering**:
+- **Haiku (default)**: 12x cheaper than Sonnet ($0.25/MTok vs $3/MTok input)
+- **Sonnet**: architecture, code review, security analysis, complex debugging
+- **Opus**: multi-system planning, critical audits, novel algorithms, strategic decisions
+
+**Prompt caching** (Anthropic API only):
+- `cacheRetention: "short"` enables 5-minute cache with 90% discount on cached tokens
+- System prompt + workspace files get cached, subsequent requests reuse them
+- Most effective on Sonnet/Opus where larger prompts justify the cache write cost
+- See [Anthropic provider docs](/providers/anthropic#prompt-caching-anthropic-api) for details
+
+**Context pruning**:
+- `mode: "cache-ttl"` prunes old messages when cache expires
+- Prevents re-caching stale conversation history
+- `keepLastAssistants: 3` preserves recent context for continuity
+
+**Heartbeat cache warming**:
+- Set heartbeat interval < cache TTL (e.g., 4 min for 5 min cache)
+- Keeps system prompt cached during idle periods
+- Uses Haiku for heartbeat to minimize cost
 
 To switch models, use `/model haiku`, `/model sonnet`, or `/model opus` in the chat.
 

@@ -65,6 +65,28 @@ When in doubt: Try Haiku first, then Sonnet, then Opus.
 DAILY BUDGET: $5 (warning at 75%)
 MONTHLY BUDGET: $200 (warning at 75%)
 
+## Prompt Caching
+
+OpenClaw uses Anthropic's prompt caching (90% discount on cached tokens).
+To maximize cache hits:
+
+**Cache-friendly (stable, rarely change):**
+- SOUL.md - your personality and rules
+- USER.md - user profile and goals
+- TOOLS.md - tool usage guidance
+- Reference docs and specs
+
+**Not cached (change frequently):**
+- memory/YYYY-MM-DD.md - daily notes
+- Recent conversation history
+- Tool outputs
+
+**Best practices:**
+- Keep SOUL.md and USER.md stable during sessions
+- Batch edits to workspace files during maintenance windows
+- Use memory/ directory for frequently-updated notes
+- Heartbeat keeps cache warm during idle periods
+
 ## Core Truths
 
 **Be genuinely helpful, not performatively helpful.** Skip the "Great question!" and "I'd be happy to help!" — just help. Actions speak louder than filler words.

@@ -4,8 +4,9 @@
 // Key optimizations:
 // - Haiku as default (12x cheaper than Sonnet)
 // - Heartbeat uses Haiku (saves ~$5-15/month)
-// - Model aliases for easy switching when you need Sonnet
-// - Context pruning to reduce token usage
+// - Model aliases for easy switching when you need Sonnet/Opus
+// - Prompt caching enabled (90% discount on cached tokens)
+// - Context pruning synced with cache TTL
 //
 // Expected savings: $50-100/month → $5-15/month
 {
@@ -21,25 +22,39 @@
         fallbacks: ["anthropic/claude-sonnet-4-5", "anthropic/claude-opus-4-5"],
       },
 
-      // Model aliases for easy switching via /model command
+      // Model aliases + prompt caching config
+      // cacheRetention: "short" = 5 min cache (90% discount on reused tokens)
+      // cacheRetention: "long" = 1 hour cache (requires extended-cache-ttl beta)
+      // Caching is most effective on Sonnet/Opus (larger prompts = bigger savings)
       models: {
-        "anthropic/claude-opus-4-5": { alias: "opus" },
-        "anthropic/claude-sonnet-4-5": { alias: "sonnet" },
-        "anthropic/claude-haiku-4-5": { alias: "haiku" },
+        "anthropic/claude-opus-4-5": {
+          alias: "opus",
+          params: { cacheRetention: "short" },
+        },
+        "anthropic/claude-sonnet-4-5": {
+          alias: "sonnet",
+          params: { cacheRetention: "short" },
+        },
+        "anthropic/claude-haiku-4-5": {
+          alias: "haiku",
+          // Haiku is already cheap; caching overhead may not be worth it
+        },
       },
 
       // Heartbeat uses Haiku to minimize costs
-      // Runs every hour instead of every 30 min to reduce API calls
+      // Set to 4m to keep 5-minute cache warm (avoids re-caching system prompt)
       heartbeat: {
-        every: "1h",
+        every: "4m",
         model: "anthropic/claude-haiku-4-5",
         target: "last",
       },
 
-      // Context pruning to reduce token usage on long sessions
+      // Context pruning synced with cache TTL
+      // mode: "cache-ttl" prunes old messages after cache expires
+      // This prevents re-caching stale history, reducing cache write costs
       contextPruning: {
         mode: "cache-ttl",
-        ttl: "30m",
+        ttl: "5m",           // Match Anthropic's cache TTL
         keepLastAssistants: 3,
       },
 
