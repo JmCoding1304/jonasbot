@@ -117,7 +117,9 @@ export function resolveImageModelConfigForTool(params: {
   } else if (primary.provider === "openai" && openaiOk) {
     preferred = "openai/gpt-5-mini";
   } else if (primary.provider === "anthropic" && anthropicOk) {
-    preferred = "anthropic/claude-opus-4-5";
+    // Use Sonnet instead of Opus for image understanding (better cost-quality balance).
+    // Fallback to Opus only if Sonnet is unavailable or user explicitly configures imageModel.
+    preferred = "anthropic/claude-sonnet-4-5";
   }
 
   if (preferred?.trim()) {
@@ -125,6 +127,7 @@ export function resolveImageModelConfigForTool(params: {
       addFallback("openai/gpt-5-mini");
     }
     if (anthropicOk) {
+      // Fallback chain: try Opus for complex vision tasks only after Sonnet is exhausted
       addFallback("anthropic/claude-opus-4-5");
     }
     // Don't duplicate primary in fallbacks.
@@ -138,6 +141,8 @@ export function resolveImageModelConfigForTool(params: {
   // Cross-provider fallback when we can't pair with the primary provider.
   if (openaiOk) {
     if (anthropicOk) {
+      // Cost-optimized: try Sonnet before falling back to Opus
+      addFallback("anthropic/claude-sonnet-4-5");
       addFallback("anthropic/claude-opus-4-5");
     }
     return {
@@ -146,7 +151,11 @@ export function resolveImageModelConfigForTool(params: {
     };
   }
   if (anthropicOk) {
-    return { primary: "anthropic/claude-opus-4-5" };
+    // Cost-optimized: default to Sonnet for most image tasks, with Opus as fallback
+    return {
+      primary: "anthropic/claude-sonnet-4-5",
+      fallbacks: ["anthropic/claude-opus-4-5"],
+    };
   }
 
   return null;
